@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mac-ai-doctor"
-version = "0.1.0"
+version = "0.1.1"
 description = "Transparent unified-memory fit estimates for local AI models"
 readme = "README.md"
 requires-python = ">=3.11"
