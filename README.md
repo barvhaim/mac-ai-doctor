@@ -1,9 +1,9 @@
 # 🩺 Mac AI Doctor
 
-**A transparent first opinion on whether a local AI model fits your Apple Silicon Mac.**
+**Will this AI model fit in your Apple Silicon Mac's unified memory?**
 
-Mac AI Doctor (`maid`) reads small metadata files—never model weights—and estimates weight,
-KV-cache, runtime, and safety-margin memory. It reports a range rather than fake precision.
+`maid` reads small metadata files—never model weights—and estimates weight, KV-cache, and runtime
+memory as a range, then gives a plain verdict.
 
 ```text
               demo/llama-8b
@@ -21,84 +21,72 @@ KV-cache, runtime, and safety-margin memory. It reports a range rather than fake
 
 ## Install
 
-This project uses [uv](https://docs.astral.sh/uv/). Install it first, then use either a packaged
-release or a checkout.
+Requires [uv](https://docs.astral.sh/uv/).
 
 ```bash
-# Package install (once published)
 uv tool install mac-ai-doctor
-```
-
-```bash
-# Development checkout
-git clone https://github.com/barvhaim/mac-ai-doctor.git
-cd mac-ai-doctor
-uv sync --group dev
 ```
 
 ## Use
 
 ```bash
-uv run maid system
-uv run maid check meta-llama/Llama-3.1-8B-Instruct
-uv run maid check ~/Models/model-q4.gguf --memory-gb 16 --context 8192
-uv run maid compare org/model-a org/model-b --memory-gb 32 --concurrency 2
-uv run maid recommend --memory-gb 16 --task coding
-uv run maid check MODEL --json
+maid system                                              # your chip and memory
+maid check meta-llama/Llama-3.1-8B-Instruct              # a Hugging Face model
+maid check ~/Models/model-q4.gguf --context 8192         # a local GGUF
+maid compare org/model-a org/model-b --concurrency 2     # side by side
+maid recommend --memory-gb 16 --task coding              # a starting point
+maid check MODEL --json                                  # machine-readable
 ```
 
-On Linux or when detection fails, pass `--memory-gb`. `--kv-dtype` accepts `fp32`, `fp16`,
-`bf16`, `int8`, or `q8`. For deterministic offline demos/tests, `check` and `compare` include a
-hidden `--fixture FILE` option using the documented fixture shape in `tests/fixtures/`.
+Accepts a Hugging Face ID, a local `.gguf` file, or a local/MLX directory with `config.json`.
 
-## What it reads (and what it does not)
+**Options:** `--memory-gb N` (required off macOS), `--context`, `--concurrency`,
+`--kv-dtype` (`fp32`/`fp16`/`bf16`/`int8`/`q8`), `--json`. Tasks: `coding`, `chat`, `vision`.
 
-For Hugging Face and MLX repositories, the tool requests `config.json`, an optional
-`model.safetensors.index.json`, and the model API's file-size listing. **It never downloads
-weight contents.** For local GGUF files it reads only the 24-byte fixed header and uses file size.
-Local directories/config files are also supported. Dense and MoE architecture fields are parsed;
-MoE active parameters are informational because all expert weights still need memory.
+## Verdicts
 
-No credentials are collected. Normal Hugging Face HTTP requests reveal the same network metadata
-as any web request (IP and user-agent) to Hugging Face.
+| Verdict | Meaning |
+| --- | --- |
+| **COMFORTABLE** | High estimate ≤ 80% of memory. |
+| **TIGHT** | Fits, but leaves < 20% headroom. |
+| **UNLIKELY** | Exceeds memory. |
+| **UNKNOWN** | Weight size unavailable. |
 
-## Formula and policy
+Confidence reflects metadata completeness, not prediction accuracy.
 
-Decimal GB are used. When metadata permits:
+## What it reads
+
+Only bounded metadata: `config.json`, the safetensors index, and the model API's file-size
+listing—or the 24-byte header of a local GGUF. **Weight contents are never downloaded.** No
+credentials are collected.
+
+## How it estimates
+
+Decimal GB. This is screening, not a benchmark—verify with your actual runtime. **No tokens/second
+prediction is made.**
 
 ```text
 weights = stored_weight_bytes × 1.06
-KV = 2 × layers × KV_heads × head_dim × context × concurrency × dtype_bytes
+KV      = 2 × layers × KV_heads × head_dim × context × concurrency × dtype_bytes
 runtime = max(1 GB, weights × 12%) + 0.25 GB × concurrency
-low..high = subtotal × 1.10 .. subtotal × 1.25
+range   = subtotal × 1.10 .. subtotal × 1.25
 ```
 
-`COMFORTABLE` means the high estimate is at most 80% of unified memory; `TIGHT` fits but leaves
-less than 20%; `UNLIKELY` exceeds memory; `UNKNOWN` means weight size is unavailable. Confidence
-reflects metadata completeness—not prediction accuracy. Unified memory is shared by macOS, apps,
-GPU, and model runtime. Implementations differ, memory mapping can help, and multimodal image
-encoders may add memory not exposed in text config metadata. Treat this as screening, then verify
-with your actual runtime. **The tool intentionally makes no tokens/second prediction.**
-
-## JSON
-
-`--json` emits schema version `1.0`, model metadata, inputs, component estimates, range, headroom,
-verdict, confidence, and assumptions. Fields that cannot be supported are `null`, never invented.
+Unified memory is shared with macOS, apps, and the GPU. Memory mapping can help; multimodal image
+encoders may add memory not shown in text config metadata.
 
 ## Troubleshooting
 
-- **Cannot detect memory:** pass `--memory-gb N`; automatic detection requires macOS.
-- **401/403 or gated model:** authenticate/access the model or use a downloaded `config.json`.
-- **No weight size:** use a repository with safetensors index/API sizes or a local GGUF.
-- **GGUF rejected:** versions 2 and 3 are supported; verify the file is complete.
-- **Very long context looks large:** KV memory grows linearly with context and concurrency.
+- **Can't detect memory** — pass `--memory-gb N` (auto-detection needs macOS).
+- **401/403 or gated** — authenticate, or point at a downloaded `config.json`.
+- **No weight size** — use a repo with a safetensors index/API sizes, or a local GGUF (v2/v3).
 
-## Development
+## Develop
 
 ```bash
+git clone https://github.com/barvhaim/mac-ai-doctor.git && cd mac-ai-doctor
 uv sync --group dev
 uv run ruff check . && uv run mypy src && uv run pytest
-uv build
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). MIT licensed.
