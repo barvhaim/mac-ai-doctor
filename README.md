@@ -32,6 +32,7 @@ uv tool install mac-ai-doctor
 ## Use
 
 ```bash
+maid tui                                                 # interactive terminal UI
 maid system                                              # your chip and memory
 maid check meta-llama/Llama-3.1-8B-Instruct              # a Hugging Face model
 maid check ~/Models/model-q4.gguf --context 8192         # a local GGUF

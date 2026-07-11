@@ -27,7 +27,9 @@ A Typer CLI (entry point `mac_ai_doctor.cli:app`, exposed as both `maid` and `ma
 
 2. **`estimate.py` — turn `ModelInfo` + workload into an `Estimate`.** `estimate()` is the single source of truth for the memory formula and verdict policy (documented in README "Formula and policy"). It falls back to estimating weights from parameter count when byte size is unavailable, and returns `Verdict.UNKNOWN` when weight size cannot be determined at all. Any change to the numbers here should be reflected in the README formula block and the JSON assumptions strings.
 
-3. **`cli.py` — commands and rendering.** Four commands: `check`, `compare`, `recommend`, `system`. `_evaluate()` wraps resolve+estimate and converts all exceptions into `typer.BadParameter`. Every command supports `--json`; human output uses Rich tables/panels. `_memory()` resolves the memory budget from `--memory-gb` or `detect_system()`.
+3. **`cli.py` — commands and rendering.** Five commands: `check`, `compare`, `recommend`, `system`, `tui`. `_evaluate()` wraps resolve+estimate and converts all exceptions into `typer.BadParameter`. Every command supports `--json`; human output uses Rich tables/panels. `_memory()` resolves the memory budget from `--memory-gb` or `detect_system()`. `build_check_renderables()` builds the shared table/verdict-panel/disclaimer for a single estimate; both `_render()` (CLI) and the TUI consume it so they render identically.
+
+**`tui.py`** is an optional Textual app (`maid tui`) that mirrors `maid check` interactively — a form (model ref + memory/context/concurrency/kv-dtype) whose results reuse the same `resolve_model` → `estimate` → `build_check_renderables` path. Resolve+estimate run in a Textual worker thread; errors surface inline. It is imported lazily inside the `tui` command so the other commands never pay the Textual import cost.
 
 **`models.py`** holds the three dataclasses (`SystemInfo`, `ModelInfo`, `Estimate`) and the `Verdict` enum. `to_dict()` stamps `schema_version: "1.0"` — this is the stable JSON contract; fields that can't be computed are `null`, never invented.
 

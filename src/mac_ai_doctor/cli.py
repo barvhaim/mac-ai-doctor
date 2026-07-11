@@ -28,13 +28,24 @@ def _memory(value: float | None) -> float:
     return result
 
 
-def _render(item: Estimate) -> None:
-    color = {
-        Verdict.COMFORTABLE: "green",
-        Verdict.TIGHT: "yellow",
-        Verdict.UNLIKELY: "red",
-        Verdict.UNKNOWN: "dim",
-    }[item.verdict]
+VERDICT_COLOR = {
+    Verdict.COMFORTABLE: "green",
+    Verdict.TIGHT: "yellow",
+    Verdict.UNLIKELY: "red",
+    Verdict.UNKNOWN: "dim",
+}
+VERDICT_GUIDANCE = {
+    Verdict.COMFORTABLE: "Good fit. Keep normal apps modest for best stability.",
+    Verdict.TIGHT: "May fit, but close memory-heavy apps or reduce context/concurrency.",
+    Verdict.UNLIKELY: "Choose a smaller/more-quantized model or reduce context.",
+    Verdict.UNKNOWN: "Provide a model with weight-size metadata for a fit verdict.",
+}
+DISCLAIMER = "Estimate, not a benchmark. No token/s prediction is made."
+
+
+def build_check_renderables(item: Estimate) -> tuple[Table, Panel, str]:
+    """Build the shared table, verdict panel, and disclaimer for a single estimate."""
+    color = VERDICT_COLOR[item.verdict]
     table = Table(title=item.model.model_id, show_header=False)
     table.add_column("Component", style="cyan")
     table.add_column("Estimate", justify="right")
@@ -52,20 +63,18 @@ def _render(item: Estimate) -> None:
         f"{item.low_gb:.2f}–{item.high_gb:.2f} GB" if item.low_gb is not None else "unknown",
     )
     table.add_row("Available", f"{item.available_gb:.1f} GB")
-    console.print(table)
-    guidance = {
-        Verdict.COMFORTABLE: "Good fit. Keep normal apps modest for best stability.",
-        Verdict.TIGHT: "May fit, but close memory-heavy apps or reduce context/concurrency.",
-        Verdict.UNLIKELY: "Choose a smaller/more-quantized model or reduce context.",
-        Verdict.UNKNOWN: "Provide a model with weight-size metadata for a fit verdict.",
-    }[item.verdict]
-    console.print(
-        Panel(
-            guidance,
-            title=f"[{color}]{item.verdict.value}[/{color}] · {item.confidence} confidence",
-        )
+    panel = Panel(
+        VERDICT_GUIDANCE[item.verdict],
+        title=f"[{color}]{item.verdict.value}[/{color}] · {item.confidence} confidence",
     )
-    console.print("[dim]Estimate, not a benchmark. No token/s prediction is made.[/dim]")
+    return table, panel, DISCLAIMER
+
+
+def _render(item: Estimate) -> None:
+    table, panel, disclaimer = build_check_renderables(item)
+    console.print(table)
+    console.print(panel)
+    console.print(f"[dim]{disclaimer}[/dim]")
 
 
 def _evaluate(
@@ -192,6 +201,14 @@ def recommend(
     typer.echo(json.dumps(payload, indent=2)) if json_output else console.print(
         Panel(note, title="Conservative starting point")
     )
+
+
+@app.command()
+def tui() -> None:
+    """Launch the interactive terminal UI for exploring model fit."""
+    from .tui import run_tui
+
+    run_tui()
 
 
 if __name__ == "__main__":

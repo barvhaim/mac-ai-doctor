@@ -52,7 +52,25 @@ def _from_config(
     )
 
 
+def _normalize_hf_id(value: str) -> str:
+    """Accept a bare ``owner/name`` ID or a pasted huggingface.co URL and return the ID."""
+    text = value.strip()
+    for prefix in ("https://huggingface.co/", "http://huggingface.co/", "huggingface.co/"):
+        if text.startswith(prefix):
+            text = text[len(prefix) :]
+            break
+    # Drop any /tree/... /blob/... /resolve/... path suffix, query, or fragment.
+    text = text.split("?", 1)[0].split("#", 1)[0]
+    parts = text.strip("/").split("/")
+    for marker in ("tree", "blob", "resolve"):
+        if marker in parts:
+            parts = parts[: parts.index(marker)]
+            break
+    return "/".join(parts)
+
+
 def resolve_hf(model_id: str, timeout: float = 10) -> ModelInfo:
+    model_id = _normalize_hf_id(model_id)
     base = f"https://huggingface.co/{model_id}/resolve/main"
     with httpx.Client(
         timeout=timeout, follow_redirects=True, headers={"User-Agent": "mac-ai-doctor/0.1"}
