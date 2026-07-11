@@ -21,23 +21,30 @@ KV-cache, runtime, and safety-margin memory. It reports a range rather than fake
 
 ## Install
 
-Python 3.11+:
+This project uses [uv](https://docs.astral.sh/uv/). Install it first, then use either a packaged
+release or a checkout.
 
 ```bash
-python3 -m pip install mac-ai-doctor
+# Package install (once published)
+uv tool install mac-ai-doctor
 ```
 
-From a checkout: `python3 -m pip install -e .`
+```bash
+# Development checkout
+git clone https://github.com/barvhaim/mac-ai-doctor.git
+cd mac-ai-doctor
+uv sync --group dev
+```
 
 ## Use
 
 ```bash
-maid system
-maid check meta-llama/Llama-3.1-8B-Instruct
-maid check ~/Models/model-q4.gguf --memory-gb 16 --context 8192
-maid compare org/model-a org/model-b --memory-gb 32 --concurrency 2
-maid recommend --memory-gb 16 --task coding
-maid check MODEL --json
+uv run maid system
+uv run maid check meta-llama/Llama-3.1-8B-Instruct
+uv run maid check ~/Models/model-q4.gguf --memory-gb 16 --context 8192
+uv run maid compare org/model-a org/model-b --memory-gb 32 --concurrency 2
+uv run maid recommend --memory-gb 16 --task coding
+uv run maid check MODEL --json
 ```
 
 On Linux or when detection fails, pass `--memory-gb`. `--kv-dtype` accepts `fp32`, `fp16`,
@@ -89,9 +96,9 @@ verdict, confidence, and assumptions. Fields that cannot be supported are `null`
 ## Development
 
 ```bash
-python3 -m pip install -e '.[dev]'
-ruff check . && mypy src && pytest
-python3 -m build
+uv sync --group dev
+uv run ruff check . && uv run mypy src && uv run pytest
+uv build
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). MIT licensed.
