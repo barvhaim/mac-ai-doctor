@@ -6,17 +6,19 @@
 memory as a range, then gives a plain verdict.
 
 ```text
-              demo/llama-8b
-┌────────────────┬──────────────┐
-│ Weights        │      4.77 GB │
-│ KV cache       │      0.54 GB │
-│ Runtime        │      1.25 GB │
-│ Peak range     │ 7.21–8.20 GB │
-│ Available      │     16.0 GB  │
-└────────────────┴──────────────┘
-╭──────── COMFORTABLE · high confidence ────────╮
-│ Good fit. Keep normal apps modest.             │
-╰────────────────────────────────────────────────╯
+$ maid check ibm-granite/granite-switch-4.1-3b-preview
+
+     ibm-granite/granite-switch-4.1-3b-preview
+┌────────────┬────────────────┐
+│ Weights    │        8.80 GB │
+│ KV cache   │        0.34 GB │
+│ Runtime    │        1.31 GB │
+│ Peak range │ 11.49–13.06 GB │
+│ Available  │        68.7 GB │
+└────────────┴────────────────┘
+╭──────────── COMFORTABLE · high confidence ─────────────╮
+│ Good fit. Keep normal apps modest for best stability.  │
+╰────────────────────────────────────────────────────────╯
 ```
 
 ## Install
