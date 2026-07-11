@@ -26,13 +26,14 @@ $ maid check ibm-granite/granite-switch-4.1-3b-preview --memory-gb 16
 Requires [uv](https://docs.astral.sh/uv/).
 
 ```bash
-uv tool install mac-ai-doctor
+uv tool install mac-ai-doctor          # CLI only
+uv tool install 'mac-ai-doctor[web]'    # also enables `maid web`
 ```
 
 ## Use
 
 ```bash
-maid tui                                                 # interactive terminal UI
+maid web                                                 # interactive web UI (needs the 'web' extra)
 maid system                                              # your chip and memory
 maid check meta-llama/Llama-3.1-8B-Instruct              # a Hugging Face model
 maid check ~/Models/model-q4.gguf --context 8192         # a local GGUF

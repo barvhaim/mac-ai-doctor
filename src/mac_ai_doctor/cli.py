@@ -204,11 +204,22 @@ def recommend(
 
 
 @app.command()
-def tui() -> None:
-    """Launch the interactive terminal UI for exploring model fit."""
-    from .tui import run_tui
+def web() -> None:
+    """Launch the interactive Streamlit web UI for exploring model fit."""
+    import importlib.util
+    import subprocess
+    import sys
+    from pathlib import Path
 
-    run_tui()
+    if importlib.util.find_spec("streamlit") is None:
+        raise typer.BadParameter(
+            "Streamlit is not installed. Install it with: uv tool install 'mac-ai-doctor[web]'"
+        )
+    app_path = Path(__file__).with_name("webapp.py")
+    # --server.headless skips Streamlit's first-run email prompt and the browser
+    # auto-open, which would otherwise block or misbehave when launched this way.
+    cmd = [sys.executable, "-m", "streamlit", "run", str(app_path), "--server.headless=true"]
+    raise typer.Exit(subprocess.run(cmd).returncode)
 
 
 if __name__ == "__main__":

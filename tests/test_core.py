@@ -2,14 +2,12 @@ import json
 import struct
 from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
 from mac_ai_doctor.cli import app, build_check_renderables
 from mac_ai_doctor.estimate import estimate
 from mac_ai_doctor.metadata import _normalize_hf_id, resolve_fixture, resolve_gguf
 from mac_ai_doctor.models import Verdict
-from mac_ai_doctor.tui import _parse, run_tui
 
 FIXTURE = "tests/fixtures/llama-8b.json"
 
@@ -67,23 +65,17 @@ def test_build_check_renderables_matches_estimate():
     assert "benchmark" in disclaimer
 
 
-def test_tui_command_registered():
-    assert callable(run_tui)
-    assert CliRunner().invoke(app, ["tui", "--help"]).exit_code == 0
+def test_web_command_registered():
+    assert CliRunner().invoke(app, ["web", "--help"]).exit_code == 0
 
 
-def test_tui_parse_validates_inputs():
-    ok = _parse("demo/model", "16", "4096", "1", "fp16")
-    assert ok.memory_gb == 16 and ok.context == 4096 and ok.concurrency == 1
-    for args in (
-        ("", "16", "4096", "1", "fp16"),  # blank model
-        ("m", "0", "4096", "1", "fp16"),  # non-positive memory
-        ("m", "x", "4096", "1", "fp16"),  # non-numeric memory
-        ("m", "16", "0", "1", "fp16"),  # non-positive context
-        ("m", "16", "4096", "1", "bogus"),  # bad kv dtype
-    ):
-        with pytest.raises(ValueError):
-            _parse(*args)
+def test_webapp_importable_and_reuses_estimate():
+    # The Streamlit app must import cleanly (no Streamlit runtime needed) and
+    # expose main() plus the shared verdict/DTYPE surfaces it renders from.
+    from mac_ai_doctor import webapp
+
+    assert callable(webapp.main)
+    assert set(webapp._VERDICT_STYLE) == set(Verdict)
 
 
 def test_normalize_hf_id_accepts_urls():
