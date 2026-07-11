@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mac AI Doctor — Will this model fit your Mac?</title>
+<meta name="description" content="Paste an exact Hugging Face model. Know whether it fits your Apple Silicon Mac before downloading the weights. Reads bounded metadata, never model weights." />
+
+<!-- Open Graph -->
+<meta property="og:title" content="Mac AI Doctor — Will this model fit your Mac?" />
+<meta property="og:description" content="Diagnose whether a local AI model fits your Apple Silicon unified memory — before you download a single byte of weights." />
+<meta property="og:type" content="website" />
+<meta property="og:image" content="../assets/social-preview.png" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Archivo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+<style>
+  :root {
+    --bg:        #0b0f0e;
+    --bg-2:      #0f1513;
+    --panel:     #121a18;
+    --panel-2:   #161f1c;
+    --line:      #22302c;
+    --line-soft: #1a2421;
+    --ink:       #e8f1ed;
+    --ink-dim:   #8fa39c;
+    --ink-faint: #5c6f68;
+
+    --vital:     #35e08a;   /* comfortable / signal green */
+    --vital-dim: #1c8a54;
+    --amber:     #ffb454;   /* tight */
+    --crimson:   #ff5c5c;   /* unlikely */
+    --slate:     #6d7f78;   /* unknown */
+
+    --mono: 'Space Mono', ui-monospace, monospace;
+    --sans: 'Archivo', system-ui, sans-serif;
+    --serif: 'Fraunces', Georgia, serif;
+
+    --maxw: 1160px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* --- Ambient textures --- */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px);
+    background-size: 46px 46px;
+    -webkit-mask-image: radial-gradient(ellipse 90% 65% at 50% 0%, #000 20%, transparent 75%);
+            mask-image: radial-gradient(ellipse 90% 65% at 50% 0%, #000 20%, transparent 75%);
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 28px; position: relative; z-index: 2; }
+
+  a { color: inherit; text-decoration: none; }
+
+  /* ---------- NAV ---------- */
+  nav {
+    position: sticky; top: 0; z-index: 50;
+    backdrop-filter: blur(12px);
+    background: rgba(11,15,14,0.72);
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .nav-inner {
+    max-width: var(--maxw); margin: 0 auto; padding: 14px 28px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; font-family: var(--mono); font-weight: 700; font-size: 15px; letter-spacing: -0.02em; }
+  .pulse-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--vital);
+    box-shadow: 0 0 0 0 rgba(53,224,138,0.6);
+    animation: pulse 2.4s infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(53,224,138,0.55); }
+    70%  { box-shadow: 0 0 0 9px rgba(53,224,138,0); }
+    100% { box-shadow: 0 0 0 0 rgba(53,224,138,0); }
+  }
+  .nav-links { display: flex; align-items: center; gap: 28px; font-size: 13.5px; font-family: var(--mono); color: var(--ink-dim); }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-cta {
+    font-family: var(--mono); font-size: 13px; font-weight: 700;
+    padding: 8px 16px; border: 1px solid var(--line);
+    border-radius: 4px; color: var(--ink);
+    transition: border-color .2s, background .2s;
+  }
+  .nav-cta:hover { border-color: var(--vital); background: rgba(53,224,138,0.06); }
+  .nav-links .plain { display: none; }
+  @media (min-width: 720px) { .nav-links .plain { display: inline; } }
+
+  /* ---------- HERO ---------- */
+  header.hero { padding: 92px 0 40px; }
+  .hero-grid { display: grid; grid-template-columns: 1fr; gap: 54px; align-items: start; }
+  @media (min-width: 940px) { .hero-grid { grid-template-columns: 1.05fr 0.95fr; gap: 44px; align-items: center; } }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--vital);
+    border: 1px solid var(--vital-dim); border-radius: 100px;
+    padding: 6px 14px; margin-bottom: 26px;
+    background: rgba(53,224,138,0.05);
+  }
+  .eyebrow .tick { width:6px; height:6px; background: var(--vital); border-radius:50%; }
+
+  h1.title {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: clamp(40px, 6.4vw, 74px);
+    line-height: 0.98;
+    letter-spacing: -0.02em;
+    margin-bottom: 26px;
+  }
+  h1.title em { font-style: italic; color: var(--vital); }
+  .subhead { font-size: 18.5px; color: var(--ink-dim); max-width: 30em; margin-bottom: 34px; }
+  .subhead strong { color: var(--ink); font-weight: 600; }
+
+  .cta-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+  .btn {
+    font-family: var(--mono); font-weight: 700; font-size: 14px;
+    padding: 14px 22px; border-radius: 5px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 10px;
+    transition: transform .15s, box-shadow .25s, background .2s;
+    border: 1px solid transparent;
+  }
+  .btn-primary { background: var(--vital); color: #04120b; box-shadow: 0 0 0 1px rgba(53,224,138,0.4), 0 8px 30px -8px rgba(53,224,138,0.5); }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 0 1px rgba(53,224,138,0.6), 0 14px 40px -8px rgba(53,224,138,0.6); }
+  .btn-ghost { border-color: var(--line); color: var(--ink); background: transparent; }
+  .btn-ghost:hover { border-color: var(--ink-dim); }
+  .arrow { transition: transform .2s; }
+  .btn:hover .arrow { transform: translateX(3px); }
+
+  .hero-meta { margin-top: 28px; display: flex; gap: 22px; flex-wrap: wrap; font-family: var(--mono); font-size: 12.5px; color: var(--ink-faint); }
+  .hero-meta span { display: inline-flex; align-items: center; gap: 7px; }
+  .hero-meta b { color: var(--ink-dim); font-weight: 400; }
+
+  /* ---------- TERMINAL ---------- */
+  .terminal {
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 40px 90px -30px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.03);
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 13.5px;
+  }
+  .term-bar { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line-soft); background: rgba(0,0,0,0.2); }
+  .term-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .d-r { background: #ff5f57; } .d-y { background: #febc2e; } .d-g { background: #28c840; }
+  .term-title { margin-left: 10px; color: var(--ink-faint); font-size: 12px; letter-spacing: 0.02em; }
+  .term-body { padding: 22px 22px 26px; line-height: 1.75; }
+  .term-body .prompt { color: var(--vital); }
+  .term-body .flag { color: var(--amber); }
+  .term-body .cmd { color: var(--ink); }
+  .term-body .dim { color: var(--ink-faint); }
+
+  .readout { margin-top: 18px; border: 1px solid var(--line-soft); border-radius: 8px; overflow: hidden; }
+  .readout .rt-title { padding: 9px 14px; background: rgba(53,224,138,0.05); color: var(--ink-dim); border-bottom: 1px solid var(--line-soft); font-size: 12px; }
+  .readout .row { display: flex; justify-content: space-between; padding: 7px 14px; border-bottom: 1px solid var(--line-soft); }
+  .readout .row:last-child { border-bottom: none; }
+  .readout .row .k { color: var(--ink-dim); }
+  .readout .row .v { color: var(--ink); }
+  .readout .row.peak .v { color: var(--amber); }
+
+  .verdict-line {
+    margin-top: 16px; padding: 13px 16px; border-radius: 8px;
+    border: 1px solid var(--amber);
+    background: rgba(255,180,84,0.07);
+    display: flex; align-items: flex-start; gap: 12px;
+  }
+  .verdict-badge { font-weight: 700; color: var(--amber); letter-spacing: 0.04em; }
+  .verdict-line .vd-text { color: var(--ink-dim); font-family: var(--sans); font-size: 13px; }
+
+  .cursor { display:inline-block; width:8px; height:15px; background: var(--vital); vertical-align:-2px; animation: blink 1.1s steps(2) infinite; }
+  @keyframes blink { 0%,50%{opacity:1;} 50.01%,100%{opacity:0;} }
+
+  /* ---------- SECTIONS ---------- */
+  section { padding: 84px 0; position: relative; }
+  .section-tag { font-family: var(--mono); font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--vital); margin-bottom: 16px; }
+  h2.sec {
+    font-family: var(--serif); font-weight: 500;
+    font-size: clamp(30px, 4.4vw, 46px); line-height: 1.05;
+    letter-spacing: -0.02em; margin-bottom: 18px; max-width: 16em;
+  }
+  .sec-lead { color: var(--ink-dim); font-size: 17px; max-width: 42em; margin-bottom: 48px; }
+
+  .divider-band { border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); background: var(--bg-2); }
+
+  /* ---------- VITALS / VERDICTS ---------- */
+  .verdict-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px,1fr)); gap: 18px; }
+  .vcard {
+    border: 1px solid var(--line); border-radius: 10px; padding: 26px 22px;
+    background: var(--panel); position: relative; overflow: hidden;
+    transition: transform .2s, border-color .2s;
+  }
+  .vcard:hover { transform: translateY(-4px); }
+  .vcard .bar { position:absolute; left:0; top:0; bottom:0; width:4px; }
+  .vcard .vlabel { font-family: var(--mono); font-weight: 700; font-size: 15px; letter-spacing: 0.04em; margin-bottom: 10px; }
+  .vcard .vmeaning { color: var(--ink-dim); font-size: 14px; }
+  .vcard.comfortable { --c: var(--vital); } .vcard.comfortable:hover { border-color: var(--vital); }
+  .vcard.tight { --c: var(--amber); } .vcard.tight:hover { border-color: var(--amber); }
+  .vcard.unlikely { --c: var(--crimson); } .vcard.unlikely:hover { border-color: var(--crimson); }
+  .vcard.unknown { --c: var(--slate); } .vcard.unknown:hover { border-color: var(--slate); }
+  .vcard .bar { background: var(--c); }
+  .vcard .vlabel { color: var(--c); }
+  .vcard .glyph { position:absolute; right:18px; top:20px; font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
+
+  /* ---------- FEATURES ---------- */
+  .feat-grid { display: grid; grid-template-columns: 1fr; gap: 1px; background: var(--line-soft); border: 1px solid var(--line-soft); border-radius: 12px; overflow: hidden; }
+  @media (min-width: 700px) { .feat-grid { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 1000px) { .feat-grid { grid-template-columns: repeat(3,1fr); } }
+  .feat { background: var(--panel); padding: 34px 28px; transition: background .2s; }
+  .feat:hover { background: var(--panel-2); }
+  .feat .fnum { font-family: var(--mono); font-size: 12px; color: var(--vital); margin-bottom: 18px; letter-spacing: 0.08em; }
+  .feat h3 { font-family: var(--sans); font-weight: 700; font-size: 19px; margin-bottom: 10px; letter-spacing: -0.01em; }
+  .feat p { color: var(--ink-dim); font-size: 14.5px; }
+
+  /* ---------- FORMULA ---------- */
+  .formula-wrap { display: grid; grid-template-columns: 1fr; gap: 40px; align-items: center; }
+  @media (min-width: 900px) { .formula-wrap { grid-template-columns: 0.9fr 1.1fr; } }
+  .code-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    font-family: var(--mono); font-size: 13.5px; line-height: 2;
+    padding: 26px 24px; overflow-x: auto;
+  }
+  .code-card .var { color: var(--vital); }
+  .code-card .op  { color: var(--amber); }
+  .code-card .num { color: #7cc4ff; }
+  .code-card .cmt { color: var(--ink-faint); }
+
+  .privacy-list { list-style: none; }
+  .privacy-list li { padding: 14px 0; border-bottom: 1px solid var(--line-soft); display: flex; gap: 14px; align-items: flex-start; font-size: 15px; color: var(--ink-dim); }
+  .privacy-list li:last-child { border-bottom: none; }
+  .privacy-list .chk { color: var(--vital); font-family: var(--mono); font-weight: 700; flex-shrink: 0; }
+  .privacy-list b { color: var(--ink); }
+  .privacy-note { margin-top: 26px; padding: 16px 18px; border-left: 3px solid var(--crimson); background: rgba(255,92,92,0.05); font-size: 14px; color: var(--ink-dim); font-family: var(--mono); }
+  .privacy-note b { color: var(--ink); }
+
+  /* ---------- INSTALL ---------- */
+  .install-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+  .tab {
+    font-family: var(--mono); font-size: 13px; padding: 8px 15px; border-radius: 5px;
+    border: 1px solid var(--line); color: var(--ink-dim); cursor: pointer; background: transparent;
+    transition: all .15s;
+  }
+  .tab.active { border-color: var(--vital); color: var(--vital); background: rgba(53,224,138,0.06); }
+  .tab:hover:not(.active) { color: var(--ink); }
+  .install-code {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 20px 22px; font-family: var(--mono); font-size: 14px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  .install-code code { color: var(--ink); }
+  .install-code .prompt { color: var(--vital); margin-right: 8px; }
+  .copy-btn { font-family: var(--mono); font-size: 12px; color: var(--ink-dim); border: 1px solid var(--line); background: transparent; padding: 6px 12px; border-radius: 5px; cursor: pointer; flex-shrink: 0; transition: all .15s; }
+  .copy-btn:hover { border-color: var(--vital); color: var(--vital); }
+
+  /* ---------- COMPARISON ---------- */
+  .cmp { width: 100%; border-collapse: collapse; font-size: 14.5px; }
+  .cmp th, .cmp td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--line-soft); }
+  .cmp thead th { font-family: var(--mono); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); font-weight: 400; }
+  .cmp thead th.us { color: var(--vital); }
+  .cmp td.center, .cmp th.center { text-align: center; }
+  .cmp tbody tr:hover { background: var(--panel); }
+  .cmp .yes { color: var(--vital); font-family: var(--mono); font-weight: 700; }
+  .cmp .no { color: var(--ink-faint); font-family: var(--mono); }
+  .cmp .maybe { color: var(--amber); font-family: var(--mono); }
+  .cmp td:first-child { color: var(--ink); }
+  .cmp-scroll { overflow-x: auto; border: 1px solid var(--line-soft); border-radius: 12px; }
+
+  /* ---------- CTA ---------- */
+  .final-cta { text-align: center; padding: 100px 0; }
+  .final-cta h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(34px, 5vw, 58px); line-height: 1.02; letter-spacing: -0.02em; margin-bottom: 22px; }
+  .final-cta h2 em { font-style: italic; color: var(--vital); }
+  .final-cta p { color: var(--ink-dim); font-size: 18px; max-width: 34em; margin: 0 auto 38px; }
+
+  /* ---------- FOOTER ---------- */
+  footer { border-top: 1px solid var(--line-soft); padding: 44px 0; background: var(--bg-2); }
+  .foot-inner { display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-between; align-items: center; font-family: var(--mono); font-size: 13px; color: var(--ink-faint); }
+  .foot-links { display: flex; gap: 24px; flex-wrap: wrap; }
+  .foot-links a:hover { color: var(--vital); }
+
+  /* ---------- REVEAL ---------- */
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+  .reveal.in { opacity: 1; transform: none; }
+
+  ::selection { background: var(--vital); color: #04120b; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-inner">
+    <a class="brand" href="#top">
+      <span class="pulse-dot"></span>
+      mac-ai-doctor
+    </a>
+    <div class="nav-links">
+      <a href="#verdicts" class="plain">Verdicts</a>
+      <a href="#how" class="plain">How it works</a>
+      <a href="#compare" class="plain">Compare</a>
+      <a href="#install">Install</a>
+      <a class="nav-cta" href="https://github.com/barvhaim/mac-ai-doctor" target="_blank" rel="noopener">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <span class="eyebrow"><span class="tick"></span>Diagnostics for local AI on Apple Silicon</span>
+        <h1 class="title">Will this model <em>fit</em> your Mac?</h1>
+        <p class="subhead">
+          Paste an exact Hugging Face model. Get a plain verdict on whether it fits your
+          unified memory — <strong>before you download a single byte of weights.</strong>
+        </p>
+        <div class="cta-row">
+          <a class="btn btn-primary" href="#install">
+            Run the check <span class="arrow">→</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/barvhaim/mac-ai-doctor" target="_blank" rel="noopener">
+            View source
+          </a>
+        </div>
+        <div class="hero-meta">
+          <span><b>◉</b> Reads metadata, never weights</span>
+          <span><b>◉</b> MIT licensed</span>
+          <span><b>◉</b> No tokens/sec hype</span>
+        </div>
+      </div>
+
+      <!-- Terminal -->
+      <div class="terminal reveal">
+        <div class="term-bar">
+          <span class="term-dot d-r"></span>
+          <span class="term-dot d-y"></span>
+          <span class="term-dot d-g"></span>
+          <span class="term-title">maid — check — 80×24</span>
+        </div>
+        <div class="term-body">
+          <div><span class="prompt">$</span> <span class="cmd">maid check</span> ibm-granite/granite-switch-4.1-3b-preview <span class="flag">--memory-gb</span> 16</div>
+          <div class="readout">
+            <div class="rt-title">ibm-granite/granite-switch-4.1-3b-preview</div>
+            <div class="row"><span class="k">Weights</span><span class="v">8.80 GB</span></div>
+            <div class="row"><span class="k">KV cache</span><span class="v">0.34 GB</span></div>
+            <div class="row"><span class="k">Runtime</span><span class="v">1.31 GB</span></div>
+            <div class="row peak"><span class="k">Peak range</span><span class="v">11.49–13.06 GB</span></div>
+            <div class="row"><span class="k">Available</span><span class="v">16.0 GB</span></div>
+          </div>
+          <div class="verdict-line">
+            <span class="verdict-badge">TIGHT</span>
+            <span class="vd-text">May fit, but close memory-heavy apps or reduce context / concurrency.</span>
+          </div>
+          <div style="margin-top:16px;"><span class="prompt">$</span> <span class="cursor"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- VERDICTS -->
+<section id="verdicts" class="divider-band">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="section-tag">The readout</div>
+      <h2 class="sec">Four verdicts. No spreadsheets to interpret.</h2>
+      <p class="sec-lead">
+        Every check ends in one word. Confidence describes how complete the model's
+        metadata is — not how accurate a benchmark would be. Because this is screening, not a benchmark.
+      </p>
+    </div>
+    <div class="verdict-grid">
+      <div class="vcard comfortable reveal">
+        <span class="bar"></span><span class="glyph">≤ 80%</span>
+        <div class="vlabel">COMFORTABLE</div>
+        <div class="vmeaning">High estimate uses at most 80% of available memory. Good fit — keep normal apps modest for best stability.</div>
+      </div>
+      <div class="vcard tight reveal">
+        <span class="bar"></span><span class="glyph">&lt; 20% headroom</span>
+        <div class="vlabel">TIGHT</div>
+        <div class="vmeaning">Estimated to fit with less than 20% headroom. Close memory-heavy apps or reduce context / concurrency.</div>
+      </div>
+      <div class="vcard unlikely reveal">
+        <span class="bar"></span><span class="glyph">&gt; available</span>
+        <div class="vlabel">UNLIKELY</div>
+        <div class="vmeaning">High estimate exceeds available memory. Choose a smaller or more-quantized model, or reduce context.</div>
+      </div>
+      <div class="vcard unknown reveal">
+        <span class="bar"></span><span class="glyph">no metadata</span>
+        <div class="vlabel">UNKNOWN</div>
+        <div class="vmeaning">Weight-size metadata is unavailable. Provide a repo exposing safetensors sizes, or a local GGUF file.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section id="how">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="section-tag">Capabilities</div>
+      <h2 class="sec">Deliberately narrow. Ruthlessly honest.</h2>
+      <p class="sec-lead">
+        One job: inspect one exact model for one Apple Silicon memory budget, before a large download.
+        No model rankings, no throughput claims, no telemetry.
+      </p>
+    </div>
+    <div class="feat-grid reveal">
+      <div class="feat">
+        <div class="fnum">01</div>
+        <h3>Any public HF repository</h3>
+        <p>Point it at a Hugging Face model ID or URL. It reads only <code>config.json</code>, the safetensors index, and the API's file-size listing.</p>
+      </div>
+      <div class="feat">
+        <div class="fnum">02</div>
+        <h3>Local GGUF & MLX</h3>
+        <p>Pass a local <code>.gguf</code> file — it reads the 24-byte header and file size — or an MLX / local config directory.</p>
+      </div>
+      <div class="feat">
+        <div class="fnum">03</div>
+        <h3>Transparent memory range</h3>
+        <p>Weights, KV cache and runtime are shown as an honest low–high range, with the exact assumptions that produced it.</p>
+      </div>
+      <div class="feat">
+        <div class="fnum">04</div>
+        <h3>Your workload, dialed in</h3>
+        <p>Tune <code>--context</code>, <code>--concurrency</code>, and <code>--kv-dtype</code> to model exactly how you plan to run inference.</p>
+      </div>
+      <div class="feat">
+        <div class="fnum">05</div>
+        <h3>Compare & recommend</h3>
+        <p>Put two models side by side under the same workload, or ask for a conservative starting class for coding, chat, or vision.</p>
+      </div>
+      <div class="feat">
+        <div class="fnum">06</div>
+        <h3>Shareable output</h3>
+        <p>Machine-readable <code>--json</code>, plus a browser UI that exports a Markdown report or an SVG compatibility badge.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FORMULA + PRIVACY -->
+<section class="divider-band">
+  <div class="wrap">
+    <div class="formula-wrap">
+      <div class="reveal">
+        <div class="section-tag">The formula</div>
+        <h2 class="sec">No black box.</h2>
+        <p class="sec-lead" style="margin-bottom:24px;">
+          Decimal GB. Unified memory is shared with macOS, apps and the GPU — the range reflects that.
+        </p>
+        <div class="code-card">
+          <div><span class="var">weights</span> <span class="op">=</span> stored_weight_bytes <span class="op">*</span> <span class="num">1.06</span></div>
+          <div><span class="var">KV</span> <span class="op">=</span> <span class="num">2</span> <span class="op">*</span> layers <span class="op">*</span> KV_heads <span class="op">*</span> head_dim</div>
+          <div style="padding-left:2.5ch;"><span class="op">*</span> context <span class="op">*</span> concurrency <span class="op">*</span> dtype_bytes</div>
+          <div><span class="var">runtime</span> <span class="op">=</span> max(<span class="num">1</span>GB, weights <span class="op">*</span> <span class="num">12%</span>)</div>
+          <div style="padding-left:2.5ch;"><span class="op">+</span> <span class="num">0.25</span>GB <span class="op">*</span> concurrency</div>
+          <div><span class="var">range</span> <span class="op">=</span> subtotal <span class="op">*</span> <span class="num">1.10</span> <span class="cmt">..</span> subtotal <span class="op">*</span> <span class="num">1.25</span></div>
+        </div>
+      </div>
+      <div class="reveal">
+        <div class="section-tag">Bounded reads</div>
+        <h2 class="sec">Weight contents are never downloaded.</h2>
+        <ul class="privacy-list">
+          <li><span class="chk">✓</span><span>Reads <b>config.json</b> to learn the model's shape.</span></li>
+          <li><span class="chk">✓</span><span>Reads the <b>safetensors index</b> for stored weight sizes.</span></li>
+          <li><span class="chk">✓</span><span>Reads the Hugging Face <b>file-size listing</b> — bytes on disk, not the bytes themselves.</span></li>
+          <li><span class="chk">✓</span><span>Reads the <b>24-byte header</b> of a local GGUF, plus its file size.</span></li>
+        </ul>
+        <div class="privacy-note">
+          <b>No weights. No credentials collected.</b> Gated repositories may use your existing
+          Hugging Face authentication — nothing more.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARE -->
+<section id="compare">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="section-tag">Positioning</div>
+      <h2 class="sec">What makes it different?</h2>
+      <p class="sec-lead">
+        If you need broad cross-platform recommendations or community benchmarks, other tools fit better.
+        Mac AI Doctor is built for transparent, exact-repository screening on Macs.
+      </p>
+    </div>
+    <div class="cmp-scroll reveal">
+      <table class="cmp">
+        <thead>
+          <tr>
+            <th>Capability</th>
+            <th class="center us">Mac AI Doctor</th>
+            <th class="center">Static calculators</th>
+            <th class="center">Hardware recommenders</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Inspect an arbitrary public HF repository</td><td class="center"><span class="yes">YES</span></td><td class="center"><span class="no">usually no</span></td><td class="center"><span class="maybe">varies</span></td></tr>
+          <tr><td>Accept local MLX / config dirs & GGUF files</td><td class="center"><span class="yes">YES</span></td><td class="center"><span class="no">NO</span></td><td class="center"><span class="maybe">varies</span></td></tr>
+          <tr><td>Download no model weights during a check</td><td class="center"><span class="yes">YES</span></td><td class="center"><span class="yes">yes</span></td><td class="center"><span class="maybe">varies</span></td></tr>
+          <tr><td>Show context, concurrency & KV-cache assumptions</td><td class="center"><span class="yes">YES</span></td><td class="center"><span class="maybe">varies</span></td><td class="center"><span class="maybe">varies</span></td></tr>
+          <tr><td>Produce a transparent memory range</td><td class="center"><span class="yes">YES</span></td><td class="center"><span class="maybe">varies</span></td><td class="center"><span class="maybe">varies</span></td></tr>
+          <tr><td>Rank hundreds of models or predict tokens/sec</td><td class="center"><span class="no">NO</span></td><td class="center"><span class="maybe">sometimes</span></td><td class="center"><span class="maybe">often</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- INSTALL -->
+<section id="install" class="divider-band">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="section-tag">Get started</div>
+      <h2 class="sec">In under a minute.</h2>
+      <p class="sec-lead">Run once without installing, install the CLI, or launch the browser UI locally.</p>
+    </div>
+    <div class="reveal" style="max-width:760px;">
+      <div class="install-tabs" id="tabs">
+        <button class="tab active" data-k="uvx">Run once (uvx)</button>
+        <button class="tab" data-k="pipx">Install (pipx)</button>
+        <button class="tab" data-k="uv">Install (uv tool)</button>
+        <button class="tab" data-k="web">Browser UI</button>
+      </div>
+      <div class="install-code">
+        <div><span class="prompt">$</span><code id="install-cmd">uvx mac-ai-doctor check https://huggingface.co/mlx-community/Qwen3-8B-4bit</code></div>
+        <button class="copy-btn" id="copy">copy</button>
+      </div>
+      <p style="font-family:var(--mono); font-size:12.5px; color:var(--ink-faint); margin-top:16px;">
+        Inputs: a Hugging Face model ID or URL · a local <code>.gguf</code> file · a local / MLX directory with <code>config.json</code>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final-cta">
+  <div class="wrap reveal">
+    <h2>Stop guessing. <em>Diagnose it.</em></h2>
+    <p>Screen the exact repository before the download. Get a plain verdict and the reasoning behind it.</p>
+    <div class="cta-row" style="justify-content:center;">
+      <a class="btn btn-primary" href="https://pypi.org/project/mac-ai-doctor/" target="_blank" rel="noopener">
+        Get it on PyPI <span class="arrow">→</span>
+      </a>
+      <a class="btn btn-ghost" href="https://github.com/barvhaim/mac-ai-doctor" target="_blank" rel="noopener">
+        Star on GitHub ★
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="wrap foot-inner">
+    <div>
+      <span class="pulse-dot" style="display:inline-block; vertical-align:-1px; margin-right:8px;"></span>
+      mac-ai-doctor · v0.2.0 · MIT
+    </div>
+    <div class="foot-links">
+      <a href="https://github.com/barvhaim/mac-ai-doctor" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://pypi.org/project/mac-ai-doctor/" target="_blank" rel="noopener">PyPI</a>
+      <a href="https://huggingface.co" target="_blank" rel="noopener">Hugging Face</a>
+      <a href="#top">Back to top ↑</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  // Scroll reveal
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  // Install tabs
+  const cmds = {
+    uvx:  'uvx mac-ai-doctor check https://huggingface.co/mlx-community/Qwen3-8B-4bit',
+    pipx: 'pipx install mac-ai-doctor',
+    uv:   'uv tool install mac-ai-doctor',
+    web:  "uvx --with 'mac-ai-doctor[web]' mac-ai-doctor web"
+  };
+  const tabs = document.getElementById('tabs');
+  const cmdEl = document.getElementById('install-cmd');
+  tabs.addEventListener('click', (e) => {
+    const btn = e.target.closest('.tab');
+    if (!btn) return;
+    tabs.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    cmdEl.textContent = cmds[btn.dataset.k];
+  });
+
+  // Copy button
+  const copyBtn = document.getElementById('copy');
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(cmdEl.textContent);
+      copyBtn.textContent = 'copied ✓';
+      setTimeout(() => { copyBtn.textContent = 'copy'; }, 1600);
+    } catch { copyBtn.textContent = 'select & copy'; }
+  });
+</script>
+</body>
+</html>
