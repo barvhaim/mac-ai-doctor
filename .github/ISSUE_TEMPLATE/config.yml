@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: How estimates work
+    url: https://github.com/barvhaim/mac-ai-doctor#how-it-estimates
+    about: Read the assumptions and limitations before reporting an accuracy issue.

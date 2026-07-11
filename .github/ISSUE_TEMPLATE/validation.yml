@@ -1,0 +1,47 @@
+name: Validation result
+description: Compare a Mac AI Doctor estimate with a real Apple Silicon run
+title: "[validation]: "
+labels: [validation]
+body:
+  - type: input
+    id: mac
+    attributes:
+      label: Mac and chip
+      placeholder: MacBook Pro, M4 Pro, 24 GB
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Exact model and revision
+    validations:
+      required: true
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and version
+      placeholder: mlx-lm 0.x, llama.cpp build ..., Ollama ...
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Context, concurrency, KV dtype and command
+    validations:
+      required: true
+  - type: input
+    id: estimate
+    attributes:
+      label: Predicted peak range
+    validations:
+      required: true
+  - type: input
+    id: measured
+    attributes:
+      label: Measured peak and measurement method
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes, logs or screenshots

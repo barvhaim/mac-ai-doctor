@@ -17,6 +17,7 @@ from mac_ai_doctor.cli import DISCLAIMER, VERDICT_GUIDANCE
 from mac_ai_doctor.estimate import DTYPE_BYTES, estimate
 from mac_ai_doctor.metadata import resolve_model
 from mac_ai_doctor.models import Estimate, Verdict
+from mac_ai_doctor.sharing import badge_svg, build_share_query, markdown_report
 from mac_ai_doctor.system import detect_system
 
 _VERDICT_STYLE = {
@@ -67,29 +68,73 @@ def _render_result(result: Estimate) -> None:
 
     st.caption(DISCLAIMER)
 
+    st.divider()
+    st.markdown("#### Share this check")
+    query = build_share_query(
+        result.model.model_id,
+        result.available_gb,
+        result.context,
+        result.concurrency,
+        result.kv_dtype,
+    )
+    st.caption("Copy this query onto the end of the app URL to reproduce the same inputs.")
+    st.code(f"?{query}", language=None)
+    report_col, badge_col = st.columns(2)
+    report_col.download_button(
+        "Download Markdown report",
+        markdown_report(result),
+        file_name="mac-ai-doctor-report.md",
+        mime="text/markdown",
+        use_container_width=True,
+    )
+    badge_col.download_button(
+        "Download SVG badge",
+        badge_svg("Mac memory fit", result.verdict),
+        file_name="mac-ai-doctor-badge.svg",
+        mime="image/svg+xml",
+        use_container_width=True,
+    )
+
 
 def main() -> None:
-    st.set_page_config(page_title="Mac AI Doctor", page_icon="🩺")
+    st.set_page_config(page_title="Mac AI Doctor", page_icon="🩺", layout="centered")
     st.title("🩺 Mac AI Doctor")
-    st.caption("Will this model fit in your unified memory? Weights are never downloaded.")
+    st.markdown("### Will this exact model fit your Mac?")
+    st.caption(
+        "Paste a Hugging Face URL or model ID. Get a transparent unified-memory estimate "
+        "before downloading the weights."
+    )
 
     detected = detect_system()
-    memory_default = float(detected.memory_gb) if detected.memory_gb else 16.0
+    params = st.query_params
+    memory_default = float(params.get("memory", detected.memory_gb or 16.0))
+    model_default = str(params.get("model", ""))
+    context_default = int(params.get("context", 4096))
+    concurrency_default = int(params.get("concurrency", 1))
+    dtype_default = str(params.get("kv_dtype", "fp16"))
+    dtypes = list(DTYPE_BYTES)
+    if dtype_default not in dtypes:
+        dtype_default = "fp16"
 
+    st.info("Only small metadata files are read. Model weights are never downloaded.")
     with st.form("check"):
         model = st.text_input(
-            "Model reference",
-            placeholder="ibm-granite/granite-3.1-8b-instruct",
-            help="Hugging Face ID, local .gguf file, or a directory with config.json.",
+            "Hugging Face model, URL, or local file",
+            value=model_default,
+            placeholder="https://huggingface.co/mlx-community/Qwen3-8B-4bit",
+            help="Also accepts a local .gguf file or directory containing config.json.",
         )
         col1, col2 = st.columns(2)
-        memory_gb = col1.number_input("Memory (GB)", min_value=0.5, value=memory_default, step=1.0)
-        context = col2.number_input("Context", min_value=1, value=4096, step=512)
+        memory_gb = col1.number_input(
+            "Unified memory (GB)", min_value=0.5, value=memory_default, step=1.0
+        )
+        context = col2.number_input("Context length", min_value=1, value=context_default, step=512)
         col3, col4 = st.columns(2)
-        concurrency = col3.number_input("Concurrency", min_value=1, value=1, step=1)
-        dtypes = list(DTYPE_BYTES)
-        kv_dtype = col4.selectbox("KV dtype", dtypes, index=dtypes.index("fp16"))
-        submitted = st.form_submit_button("Check", type="primary")
+        concurrency = col3.number_input(
+            "Concurrent requests", min_value=1, value=concurrency_default, step=1
+        )
+        kv_dtype = col4.selectbox("KV cache dtype", dtypes, index=dtypes.index(dtype_default))
+        submitted = st.form_submit_button("Check fit", type="primary", use_container_width=True)
 
     if not submitted:
         return

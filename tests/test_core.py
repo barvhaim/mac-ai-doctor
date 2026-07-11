@@ -8,6 +8,7 @@ from mac_ai_doctor.cli import app, build_check_renderables
 from mac_ai_doctor.estimate import estimate
 from mac_ai_doctor.metadata import _normalize_hf_id, resolve_fixture, resolve_gguf
 from mac_ai_doctor.models import Verdict
+from mac_ai_doctor.sharing import badge_svg, build_share_query, markdown_report
 
 FIXTURE = "tests/fixtures/llama-8b.json"
 
@@ -86,3 +87,20 @@ def test_normalize_hf_id_accepts_urls():
     assert _normalize_hf_id(f"huggingface.co/{ident}") == ident
     assert _normalize_hf_id(f"https://huggingface.co/{ident}/tree/main") == ident
     assert _normalize_hf_id(f"https://huggingface.co/{ident}?library=transformers") == ident
+
+
+def test_share_query_round_trip_values():
+    query = build_share_query("org/model name", 24, 8192, 2, "fp16")
+    assert query == "model=org%2Fmodel+name&memory=24&context=8192&concurrency=2&kv_dtype=fp16"
+
+
+def test_markdown_report_and_badge_are_safe():
+    result = estimate(resolve_fixture(Path(FIXTURE)), 16, context=4096)
+    report = markdown_report(result)
+    assert "Mac AI Doctor" in report
+    assert result.model.model_id in report
+    assert result.verdict.value in report
+    svg = badge_svg("model <unsafe>", result.verdict)
+    assert svg.startswith("<svg")
+    assert "&lt;unsafe&gt;" in svg
+    assert "<unsafe>" not in svg
