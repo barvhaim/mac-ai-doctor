@@ -6,7 +6,7 @@
 memory as a range, then gives a plain verdict.
 
 ```text
-$ maid check ibm-granite/granite-switch-4.1-3b-preview
+$ maid check ibm-granite/granite-switch-4.1-3b-preview --memory-gb 16
 
      ibm-granite/granite-switch-4.1-3b-preview
 ┌────────────┬────────────────┐
@@ -14,11 +14,11 @@ $ maid check ibm-granite/granite-switch-4.1-3b-preview
 │ KV cache   │        0.34 GB │
 │ Runtime    │        1.31 GB │
 │ Peak range │ 11.49–13.06 GB │
-│ Available  │        68.7 GB │
+│ Available  │        16.0 GB │
 └────────────┴────────────────┘
-╭──────────── COMFORTABLE · high confidence ─────────────╮
-│ Good fit. Keep normal apps modest for best stability.  │
-╰────────────────────────────────────────────────────────╯
+╭───────────────────── TIGHT · high confidence ──────────────────────╮
+│ May fit, but close memory-heavy apps or reduce context/concurrency. │
+╰─────────────────────────────────────────────────────────────────────╯
 ```
 
 ## Install
