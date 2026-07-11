@@ -60,10 +60,12 @@ class MaidApp(App[None]):
     SUB_TITLE = "Will this model fit in your unified memory?"
     CSS = """
     #form { height: auto; padding: 1 2; }
+    #form Horizontal { height: auto; }
+    #form Horizontal > Vertical { height: auto; width: 1fr; }
     #form Label { margin-top: 1; }
     #controls { height: auto; margin-top: 1; }
     #controls Button { margin-right: 2; }
-    #results { padding: 1 2; }
+    #results { height: 1fr; padding: 1 2; }
     .error { color: $error; }
     .hint { color: $text-muted; }
     """
